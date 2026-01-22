@@ -1,627 +1,611 @@
-/* AuroraWave - app.js
-   - Bottom nav: Kesfet / Ara / Kutuphane
-   - Jamendo API: real tracks & artists search, click to play
-   - Optional: merges local catalog.json tracks too
-*/
-
 (() => {
   "use strict";
 
-  // =========================
-  // CONFIG
-  // =========================
-  const JAMENDO_CLIENT_ID = "82d8459a"; // senin Client ID
-  const JAMENDO_BASE = "https://api.jamendo.com/v3.0";
-  const JAMENDO_IMAGE_SIZE = 300;
-  const JAMENDO_AUDIOFORMAT = "mp32"; // mp31, mp32, ogg, flac
-
-  // Non-commercial Creative Commons filtresi:
-  // ccnc=true -> Non-Commercial şartlı CC
-  const JAMENDO_CC_FILTER = { ccnc: true };
-
-  // Yerel katalog dosyan (istersen kullan, yoksa boş geçer)
-  const LOCAL_CATALOG_URL = "./catalog.json";
-
-  // =========================
-  // DOM HELPERS
-  // =========================
-  const $ = (sel, root = document) => root.querySelector(sel);
-  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-  function safeText(el, text) {
-    if (!el) return;
-    el.textContent = text;
-  }
-
-  function clamp(n, a, b) {
-    return Math.max(a, Math.min(b, n));
-  }
-
-  // =========================
-  // AUDIO ENGINE
-  // =========================
-  const audioEl = (() => {
-    // HTML'de <audio id="awPlayer"> varsa onu kullan; yoksa yarat
-    let el = $("#awPlayer");
-    if (!el) {
-      el = document.createElement("audio");
-      el.id = "awPlayer";
-      el.preload = "metadata";
-      document.body.appendChild(el);
-    }
-    return el;
-  })();
-
-  const state = {
-    view: "home", // home | search | library
-    user: null,   // demo
-    localTracks: [],
-    jamendoTracks: [],
-    nowPlaying: null, // { title, artist, cover, url, source }
-    isPlaying: false,
-    lastSearch: "",
-  };
-
-  // =========================
-  // UI: BASIC TOAST
-  // =========================
-  function toast(msg) {
-    console.log("[AuroraWave]", msg);
-    const host = $("#awToastHost") || (() => {
-      const d = document.createElement("div");
-      d.id = "awToastHost";
-      d.style.position = "fixed";
-      d.style.left = "50%";
-      d.style.bottom = "110px";
-      d.style.transform = "translateX(-50%)";
-      d.style.zIndex = "9999";
-      d.style.display = "flex";
-      d.style.flexDirection = "column";
-      d.style.gap = "8px";
-      document.body.appendChild(d);
-      return d;
-    })();
-
-    const t = document.createElement("div");
-    t.style.padding = "10px 12px";
-    t.style.borderRadius = "12px";
-    t.style.background = "rgba(0,0,0,0.55)";
-    t.style.backdropFilter = "blur(10px)";
-    t.style.color = "#fff";
-    t.style.font = "14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    t.style.maxWidth = "88vw";
-    t.textContent = msg;
-
-    host.appendChild(t);
-    setTimeout(() => {
-      t.style.transition = "opacity 280ms ease";
-      t.style.opacity = "0";
-      setTimeout(() => t.remove(), 320);
-    }, 1600);
-  }
-
-  // =========================
-  // DATA: LOAD LOCAL CATALOG
-  // =========================
-  async function loadLocalCatalog() {
-    try {
-      const res = await fetch(LOCAL_CATALOG_URL, { cache: "no-store" });
-      if (!res.ok) throw new Error("catalog.json bulunamadı");
-      const json = await res.json();
-      const tracks = Array.isArray(json) ? json : (json.tracks || []);
-      state.localTracks = tracks
-        .map(normalizeLocalTrack)
-        .filter(Boolean);
-    } catch (e) {
-      state.localTracks = [];
-      // Yerel katalog olmadan da çalışsın
-    }
-  }
-
-  function normalizeLocalTrack(t) {
-    if (!t) return null;
-    // Beklenen alanlar: title, artist, file/ url, cover
-    const title = t.title || t.name || "Bilinmeyen Parça";
-    const artist = t.artist || t.artist_name || "Bilinmeyen Sanatçı";
-    const cover = t.cover || t.image || t.album_image || "";
-    const url = t.url || t.file || t.audio || "";
-    if (!url) return null;
-
-    return {
-      source: "local",
-      id: t.id || `${title}-${artist}`.toLowerCase(),
-      title,
-      artist,
-      cover,
-      url,
-      duration: t.duration || null,
-    };
-  }
-
-  // =========================
-  // DATA: JAMENDO SEARCH
-  // =========================
-  async function jamendoSearchTracks(q) {
-    const query = (q || "").trim();
-    if (!query) return [];
-
-    const params = new URLSearchParams();
-    params.set("client_id", JAMENDO_CLIENT_ID);
-    params.set("format", "json");
-    params.set("limit", "30");
-    params.set("audioformat", JAMENDO_AUDIOFORMAT);
-    params.set("imagesize", String(JAMENDO_IMAGE_SIZE));
-    params.set("include", "musicinfo");
-
-    // Free text search (track, artist, tags)
-    params.set("search", query);
-
-    // Non-commercial CC filter
-    if (JAMENDO_CC_FILTER.ccnc) params.set("ccnc", "true");
-
-    const url = `${JAMENDO_BASE}/tracks/?${params.toString()}`;
-
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("Jamendo yanıt vermedi");
-
-    const data = await res.json();
-    const results = data && data.results ? data.results : [];
-
-    return results.map((r) => ({
-      source: "jamendo",
-      id: r.id,
-      title: r.name || "Track",
-      artist: r.artist_name || "Artist",
-      cover: r.image || r.album_image || "",
-      url: r.audio || "", // stream URL
-      duration: r.duration || null,
-      license: r.license_ccurl || "",
-      releasedate: r.releasedate || "",
-    })).filter(x => x.url);
-  }
-
-  // =========================
-  // UI: VIEW RENDERING
-  // =========================
-  function showView(viewName) {
-    state.view = viewName;
-
-    // varsa section'ları toggle et
-    const home = $("#viewHome");
-    const search = $("#viewSearch");
-    const lib = $("#viewLibrary");
-
-    if (home) home.style.display = (viewName === "home") ? "" : "none";
-    if (search) search.style.display = (viewName === "search") ? "" : "none";
-    if (lib) lib.style.display = (viewName === "library") ? "" : "none";
-
-    // nav active
-    setNavActive(viewName);
-
-    // render content
-    if (viewName === "home") renderHome();
-    if (viewName === "search") renderSearch();
-    if (viewName === "library") renderLibrary();
-  }
-
-  function setNavActive(viewName) {
-    const map = { home: "navHome", search: "navSearch", library: "navLibrary" };
-    ["navHome", "navSearch", "navLibrary"].forEach((id) => {
-      const el = $("#" + id);
-      if (!el) return;
-      const isActive = id === map[viewName];
-      el.setAttribute("aria-selected", isActive ? "true" : "false");
-      el.classList.toggle("is-active", isActive);
-    });
-  }
-
-  function renderHome() {
-    // Home basit: “Ara”ya yönlendir ve birkaç öneri
-    const host = $("#homeHost");
-    if (!host) return;
-
-    const suggestions = [
-      "lofi",
-      "synthwave",
-      "ambient",
-      "piano",
-      "chill",
-      "rock",
-      "electronic",
-      "jazz",
-    ];
-
-    host.innerHTML = `
-      <div class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="h1">Keşfet</div>
-            <div class="muted">Müziği keşfetmeye hazır mısın?</div>
-          </div>
-          <button class="iconbtn" id="btnGoSearch" title="Ara">
-            🔎
-          </button>
-        </div>
-
-        <div class="search-cta">
-          <button class="cta" id="btnStart">Hazırsan başlayalım</button>
-          <button class="cta ghost" id="btnOpenSearch">Şarkı veya sanatçı ara…</button>
-        </div>
-
-        <div class="section">
-          <div class="section-title">Hızlı Etiketler</div>
-          <div class="chips" id="chipRow">
-            ${suggestions.map(s => `<button class="chip" data-q="${s}">${s}</button>`).join("")}
-          </div>
-        </div>
-      </div>
-    `;
-
-    const goSearch = $("#btnGoSearch");
-    const btnStart = $("#btnStart");
-    const btnOpenSearch = $("#btnOpenSearch");
-    if (goSearch) goSearch.addEventListener("click", () => showView("search"));
-    if (btnStart) btnStart.addEventListener("click", () => showView("search"));
-    if (btnOpenSearch) btnOpenSearch.addEventListener("click", () => showView("search"));
-
-    $$("#chipRow .chip").forEach((b) => {
-      b.addEventListener("click", () => {
-        const q = b.getAttribute("data-q") || "";
-        showView("search");
-        const inp = $("#searchInput");
-        if (inp) {
-          inp.value = q;
-          triggerSearch(q);
-        }
-      });
-    });
-  }
-
-  function renderSearch() {
-    const host = $("#searchHost");
-    if (!host) return;
-
-    host.innerHTML = `
-      <div class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="h1">Ara</div>
-            <div class="muted">Jamendo (CC) + yerel katalog içinde ara</div>
-          </div>
-        </div>
-
-        <div class="searchbar">
-          <input id="searchInput" type="search" placeholder="Şarkı, sanatçı, tür (ör: lofi, piano, rock)"/>
-          <button class="iconbtn" id="btnSearchNow" title="Ara">⏎</button>
-        </div>
-
-        <div class="results" id="resultsList"></div>
-      </div>
-    `;
-
-    const input = $("#searchInput");
-    const btn = $("#btnSearchNow");
-    const onEnter = (e) => {
-      if (e.key === "Enter") triggerSearch(input.value);
-    };
-
-    if (input) {
-      input.addEventListener("keydown", onEnter);
-
-      // Yazdıkça arama (debounce)
-      let t = null;
-      input.addEventListener("input", () => {
-        clearTimeout(t);
-        const val = input.value;
-        t = setTimeout(() => triggerSearch(val), 350);
-      });
-    }
-
-    if (btn) btn.addEventListener("click", () => triggerSearch(input.value));
-
-    // Eğer daha önce arama yaptıysan geri dönünce aynı sonuçlar gelsin
-    if (state.lastSearch) {
-      input.value = state.lastSearch;
-      paintResults(mergeResults(state.lastSearch));
-    }
-  }
-
-  function renderLibrary() {
-    const host = $("#libraryHost");
-    if (!host) return;
-
-    const recent = getRecentPlays();
-
-    host.innerHTML = `
-      <div class="panel">
-        <div class="panel-head">
-          <div>
-            <div class="h1">Kütüphane</div>
-            <div class="muted">Son çalınanlar</div>
-          </div>
-        </div>
-
-        <div class="results">
-          ${recent.length ? recent.map(renderRowHTML).join("") : `<div class="empty">Henüz kayıt yok.</div>`}
-        </div>
-      </div>
-    `;
-
-    // satır tıklama
-    $$(".row", host).forEach((row) => {
-      row.addEventListener("click", () => {
-        const src = row.getAttribute("data-src");
-        const id = row.getAttribute("data-id");
-        const item = recent.find(x => x.source === src && String(x.id) === String(id));
-        if (item) playTrack(item);
-      });
-    });
-  }
-
-  // =========================
-  // SEARCH FLOW
-  // =========================
-  async function triggerSearch(q) {
-    const query = (q || "").trim();
-    state.lastSearch = query;
-
-    const list = $("#resultsList");
-    if (list) list.innerHTML = `<div class="empty">Aranıyor…</div>`;
-
-    // Local eşleşmeler
-    const local = searchLocal(query);
-
-    // Jamendo eşleşmeler
-    let jam = [];
-    try {
-      if (query) jam = await jamendoSearchTracks(query);
-    } catch (e) {
-      jam = [];
-      toast("Jamendo araması başarısız. İnternet/Client ID kontrol et.");
-    }
-
-    state.jamendoTracks = jam;
-
-    const merged = [...local, ...jam];
-    paintResults(merged);
-  }
-
-  function searchLocal(query) {
-    const q = (query || "").trim().toLowerCase();
-    if (!q) return [];
-    return state.localTracks.filter(t => {
-      const hay = `${t.title} ${t.artist}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  function mergeResults(query) {
-    const local = searchLocal(query);
-    const jam = state.jamendoTracks || [];
-    return [...local, ...jam];
-  }
-
-  function paintResults(items) {
-    const list = $("#resultsList");
-    if (!list) return;
-
-    if (!items.length) {
-      list.innerHTML = `<div class="empty">Sonuç yok. Başka bir kelime dene.</div>`;
-      return;
-    }
-
-    list.innerHTML = items.map(renderRowHTML).join("");
-
-    // click -> play
-    $$(".row", list).forEach((row) => {
-      row.addEventListener("click", () => {
-        const src = row.getAttribute("data-src");
-        const id = row.getAttribute("data-id");
-
-        let item = null;
-        if (src === "local") item = state.localTracks.find(x => String(x.id) === String(id));
-        if (src === "jamendo") item = (state.jamendoTracks || []).find(x => String(x.id) === String(id));
-
-        if (item) playTrack(item);
-      });
-    });
-  }
-
-  function renderRowHTML(t) {
-    const cover = t.cover ? `<img class="cover" src="${escapeHTML(t.cover)}" alt="">` : `<div class="cover ph"></div>`;
-    const meta2 = t.source === "jamendo" ? `Jamendo • CC` : `Yerel`;
-    return `
-      <div class="row" role="button" tabindex="0" data-src="${t.source}" data-id="${t.id}">
-        ${cover}
-        <div class="row-meta">
-          <div class="row-title">${escapeHTML(t.title)}</div>
-          <div class="row-sub">${escapeHTML(t.artist)} <span class="dot">•</span> ${meta2}</div>
-        </div>
-        <div class="row-act">▶</div>
-      </div>
-    `;
-  }
-
-  function escapeHTML(s) {
-    return String(s || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  // =========================
-  // PLAYBACK + PLAYER UI HOOKS
-  // =========================
-  function playTrack(t) {
-    if (!t || !t.url) return;
-
-    state.nowPlaying = t;
-    audioEl.src = t.url;
-
-    audioEl.play().then(() => {
-      state.isPlaying = true;
-      toast(`Çalıyor: ${t.title} — ${t.artist}`);
-      writeRecentPlay(t);
-      updatePlayerUI();
-    }).catch(() => {
-      state.isPlaying = false;
-      toast("Çalma engellendi. Tarayıcı ses izni isteyebilir.");
-      updatePlayerUI();
-    });
-  }
-
-  function togglePlay() {
-    if (!state.nowPlaying) {
-      toast("Henüz çalan yok. Ara’dan bir şarkı seç.");
-      return;
-    }
-    if (audioEl.paused) {
-      audioEl.play().then(() => {
-        state.isPlaying = true;
-        updatePlayerUI();
-      }).catch(() => {
-        state.isPlaying = false;
-        updatePlayerUI();
-      });
-    } else {
-      audioEl.pause();
-      state.isPlaying = false;
-      updatePlayerUI();
-    }
-  }
-
-  function updatePlayerUI() {
-    // Eğer HTML’de player alanları varsa doldur
-    const t = state.nowPlaying;
-
-    safeText($("#nowTitle"), t ? t.title : "Henüz çalan yok");
-    safeText($("#nowArtist"), t ? t.artist : "Bir şarkı seç");
-
-    const img = $("#nowCover");
-    if (img) {
-      if (t && t.cover) {
-        img.style.backgroundImage = `url('${t.cover}')`;
-      } else {
-        img.style.backgroundImage = "";
-      }
-    }
-
-    const btn = $("#btnPlay");
-    if (btn) btn.textContent = (!audioEl.paused) ? "⏸" : "▶";
-  }
-
-  function wirePlayerControls() {
-    const btnPlay = $("#btnPlay");
-    const vol = $("#vol");
-    const seek = $("#seek");
-
-    if (btnPlay) btnPlay.addEventListener("click", () => {
-      pulse(btnPlay);
-      togglePlay();
-    });
-
-    if (vol) {
-      vol.addEventListener("input", () => {
-        audioEl.volume = clamp(parseFloat(vol.value || "1"), 0, 1);
-      });
-      audioEl.volume = clamp(parseFloat(vol.value || "0.85"), 0, 1);
-    }
-
-    if (seek) {
-      seek.addEventListener("input", () => {
-        if (!isFinite(audioEl.duration)) return;
-        audioEl.currentTime = (parseFloat(seek.value || "0") / 100) * audioEl.duration;
-      });
-    }
-
-    audioEl.addEventListener("timeupdate", () => {
-      if (!seek) return;
-      if (!isFinite(audioEl.duration) || audioEl.duration <= 0) return;
-      const pct = (audioEl.currentTime / audioEl.duration) * 100;
-      seek.value = String(Math.floor(pct));
-      safeText($("#tCur"), fmtTime(audioEl.currentTime));
-      safeText($("#tDur"), fmtTime(audioEl.duration));
-    });
-
-    audioEl.addEventListener("ended", () => {
-      state.isPlaying = false;
-      updatePlayerUI();
-    });
-  }
-
-  function fmtTime(sec) {
-    if (!isFinite(sec)) return "0:00";
-    sec = Math.max(0, Math.floor(sec));
+  // ---------- Helpers ----------
+  const $ = (id) => document.getElementById(id);
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+  const fmtTime = (sec) => {
+    sec = Math.floor(isFinite(sec) ? sec : 0);
     const m = Math.floor(sec / 60);
     const s = sec % 60;
     return `${m}:${String(s).padStart(2, "0")}`;
-  }
+  };
 
-  function pulse(el) {
-    if (!el) return;
-    el.classList.remove("pulse");
-    // reflow
-    void el.offsetWidth;
-    el.classList.add("pulse");
-  }
+  const LS_USERS = "aw_users_v1";
+  const LS_SESSION = "aw_session_v1";
+  const LS_LIKES = "aw_likes_v1";
 
-  // =========================
-  // NAV WIRING
-  // =========================
-  function wireNav() {
-    const home = $("#navHome");
-    const search = $("#navSearch");
-    const lib = $("#navLibrary");
-
-    if (home) home.addEventListener("click", () => { pulse(home); showView("home"); });
-    if (search) search.addEventListener("click", () => { pulse(search); showView("search"); });
-    if (lib) lib.addEventListener("click", () => { pulse(lib); showView("library"); });
-  }
-
-  // =========================
-  // RECENT PLAYS (localStorage)
-  // =========================
-  const RECENT_KEY = "aw_recent_plays_v1";
-
-  function writeRecentPlay(t) {
+  function loadJSON(key, fallback) {
     try {
-      const list = getRecentPlays();
-      const compact = {
-        source: t.source,
-        id: t.id,
-        title: t.title,
-        artist: t.artist,
-        cover: t.cover || "",
-        url: t.url,
-      };
-      const next = [compact, ...list.filter(x => !(x.source === compact.source && String(x.id) === String(compact.id)))].slice(0, 40);
-      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-    } catch {}
-  }
-
-  function getRecentPlays() {
-    try {
-      const raw = localStorage.getItem(RECENT_KEY);
-      const arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
+      const raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
     } catch {
-      return [];
+      return fallback;
+    }
+  }
+  function saveJSON(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  function getSession() {
+    return loadJSON(LS_SESSION, null);
+  }
+  function setSession(sessionObj) {
+    saveJSON(LS_SESSION, sessionObj);
+  }
+  function clearSession() {
+    localStorage.removeItem(LS_SESSION);
+  }
+
+  function getLikes() {
+    return loadJSON(LS_LIKES, []);
+  }
+  function setLikes(arr) {
+    saveJSON(LS_LIKES, arr);
+  }
+
+  // ---------- DOM ----------
+  const viewAuth = $("viewAuth");
+  const viewApp = $("viewApp");
+
+  const pageHome = $("pageHome");
+  const pageSearch = $("pageSearch");
+  const pageLibrary = $("pageLibrary");
+
+  const userBadge = $("userBadge");
+  const btnLogout = $("btnLogout");
+
+  const btnTabLogin = $("btnTabLogin");
+  const btnTabRegister = $("btnTabRegister");
+  const authTitle = $("authTitle");
+  const authForm = $("authForm");
+  const btnSubmit = $("btnSubmit");
+
+  const rowName = $("rowName");
+  const rowPass2 = $("rowPass2");
+  const inpName = $("inpName");
+  const inpEmail = $("inpEmail");
+  const inpPass = $("inpPass");
+  const inpPass2 = $("inpPass2");
+
+  const navBtns = Array.from(document.querySelectorAll(".navbtn"));
+  const btnGoSearch = $("btnGoSearch");
+  const btnStart = $("btnStart");
+  const chips = Array.from(document.querySelectorAll(".chip"));
+
+  const searchInput = $("searchInput");
+  const btnClearSearch = $("btnClearSearch");
+  const searchResults = $("searchResults");
+  const likedList = $("likedList");
+
+  const nowTitle = $("nowTitle");
+  const nowArtist = $("nowArtist");
+
+  const btnPrev = $("btnPrev");
+  const btnPlay = $("btnPlay");
+  const btnNext = $("btnNext");
+  const btnLike = $("btnLike");
+  const seek = $("seek");
+  const tCur = $("tCur");
+  const tDur = $("tDur");
+  const vol = $("vol");
+
+  const audio = $("awPlayer");
+  const ytWrap = $("ytWrap");
+
+  // Defensive: if something missing, do nothing instead of crashing.
+  if (!viewAuth || !viewApp || !audio) return;
+
+  // ---------- State ----------
+  let mode = "login"; // login | register
+  let catalog = [];
+  let filtered = [];
+  let currentIndex = -1;
+
+  let ytPlayer = null;
+  let ytReady = false;
+  let ytLoading = false;
+
+  // ---------- UI: view switching ----------
+  function showApp(isLoggedIn) {
+    viewAuth.style.display = isLoggedIn ? "none" : "flex";
+    viewApp.style.display = isLoggedIn ? "block" : "none";
+  }
+
+  function showPage(tab) {
+    const map = { home: pageHome, search: pageSearch, library: pageLibrary };
+    Object.entries(map).forEach(([k, el]) => {
+      if (!el) return;
+      el.style.display = (k === tab) ? "flex" : "none";
+    });
+
+    navBtns.forEach((b) => {
+      b.classList.toggle("is-active", b.dataset.tab === tab);
+    });
+
+    if (tab === "search") {
+      setTimeout(() => searchInput && searchInput.focus(), 60);
+    }
+    if (tab === "library") {
+      renderLikes();
     }
   }
 
-  // =========================
-  // BOOT
-  // =========================
-  document.addEventListener("DOMContentLoaded", async () => {
-    await loadLocalCatalog();
+  // ---------- Auth ----------
+  function setAuthMode(m) {
+    mode = m;
+    const isLogin = mode === "login";
+
+    if (btnTabLogin) btnTabLogin.classList.toggle("is-active", isLogin);
+    if (btnTabRegister) btnTabRegister.classList.toggle("is-active", !isLogin);
+
+    if (authTitle) authTitle.textContent = isLogin ? "Devam etmek için giriş yap" : "Hesap oluştur";
+    if (btnSubmit) btnSubmit.textContent = isLogin ? "Giriş yap" : "Kayıt ol";
+
+    if (rowName) rowName.style.display = isLogin ? "none" : "flex";
+    if (rowPass2) rowPass2.style.display = isLogin ? "none" : "flex";
+  }
+
+  function ensureUsersSeed() {
+    const users = loadJSON(LS_USERS, null);
+    if (Array.isArray(users)) return;
+    saveJSON(LS_USERS, []);
+  }
+
+  function registerUser(name, email, pass, pass2) {
+    if (!email || !pass) return { ok: false, msg: "E-posta ve şifre gerekli." };
+    if (pass.length < 4) return { ok: false, msg: "Şifre en az 4 karakter olsun." };
+    if (pass !== pass2) return { ok: false, msg: "Şifreler eşleşmiyor." };
+
+    const users = loadJSON(LS_USERS, []);
+    const exists = users.some(u => String(u.email).toLowerCase() === String(email).toLowerCase());
+    if (exists) return { ok: false, msg: "Bu e-posta zaten kayıtlı." };
+
+    users.push({ name: name || "Kullanıcı", email, pass });
+    saveJSON(LS_USERS, users);
+    return { ok: true };
+  }
+
+  function loginUser(email, pass) {
+    if (!email || !pass) return { ok: false, msg: "E-posta ve şifre gerekli." };
+    const users = loadJSON(LS_USERS, []);
+    const found = users.find(u =>
+      String(u.email).toLowerCase() === String(email).toLowerCase() &&
+      String(u.pass) === String(pass)
+    );
+    if (!found) return { ok: false, msg: "E-posta veya şifre hatalı." };
+    return { ok: true, user: { name: found.name, email: found.email } };
+  }
+
+  function setUserBadge() {
+    const s = getSession();
+    if (userBadge) userBadge.textContent = s?.email ? s.email : "Misafir";
+  }
+
+  // ---------- Catalog ----------
+  async function loadCatalog() {
+    try {
+      const res = await fetch("./catalog.json", { cache: "no-store" });
+      if (!res.ok) throw new Error("catalog.json yüklenemedi");
+      catalog = await res.json();
+      if (!Array.isArray(catalog)) catalog = [];
+      filtered = catalog.slice();
+      renderResults(filtered);
+    } catch (e) {
+      catalog = [];
+      filtered = [];
+      renderResults([]);
+    }
+  }
+
+  // ---------- Rendering ----------
+  function renderResults(list) {
+    if (!searchResults) return;
+    searchResults.innerHTML = "";
+
+    list.forEach((track, idx) => {
+      const realIndex = catalog.findIndex(t => t.id === track.id);
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="thumb"></div>
+        <div class="body">
+          <div class="title"></div>
+          <div class="artist"></div>
+          <div class="actions">
+            <button class="like" type="button" title="Beğen">♡</button>
+            <button class="play" type="button">Oynat</button>
+          </div>
+        </div>
+      `;
+
+      card.querySelector(".title").textContent = track.title || "Parça";
+      card.querySelector(".artist").textContent = track.artist || "Sanatçı";
+
+      const likeBtn = card.querySelector(".like");
+      const playBtn2 = card.querySelector(".play");
+
+      if (likeBtn) {
+        likeBtn.onclick = () => toggleLike(track.id);
+        likeBtn.textContent = getLikes().includes(track.id) ? "♥" : "♡";
+      }
+      if (playBtn2) {
+        playBtn2.onclick = () => playTrack(realIndex >= 0 ? realIndex : idx);
+      }
+
+      searchResults.appendChild(card);
+    });
+  }
+
+  function renderLikes() {
+    if (!likedList) return;
+    likedList.innerHTML = "";
+
+    const likes = getLikes();
+    const likedTracks = catalog.filter(t => likes.includes(t.id));
+    if (likedTracks.length === 0) {
+      const p = document.createElement("p");
+      p.className = "note";
+      p.textContent = "Henüz beğenilen yok.";
+      likedList.appendChild(p);
+      return;
+    }
+
+    likedTracks.forEach((track) => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="thumb"></div>
+        <div class="body">
+          <div class="title"></div>
+          <div class="artist"></div>
+          <div class="actions">
+            <button class="like" type="button" title="Beğen">♥</button>
+            <button class="play" type="button">Oynat</button>
+          </div>
+        </div>
+      `;
+      card.querySelector(".title").textContent = track.title || "Parça";
+      card.querySelector(".artist").textContent = track.artist || "Sanatçı";
+
+      card.querySelector(".like").onclick = () => toggleLike(track.id, true);
+      card.querySelector(".play").onclick = () => {
+        const i = catalog.findIndex(t => t.id === track.id);
+        playTrack(i);
+      };
+
+      likedList.appendChild(card);
+    });
+  }
+
+  // ---------- Likes ----------
+  function toggleLike(trackId, forceRemove = false) {
+    const likes = getLikes();
+    const has = likes.includes(trackId);
+    const next = forceRemove
+      ? likes.filter(id => id !== trackId)
+      : (has ? likes.filter(id => id !== trackId) : likes.concat([trackId]));
+
+    setLikes(next);
+
+    // Refresh UI
+    if (searchInput && pageSearch && pageSearch.style.display !== "none") {
+      applySearch(searchInput.value || "");
+    }
+    if (pageLibrary && pageLibrary.style.display !== "none") {
+      renderLikes();
+    }
+    if (btnLike && currentIndex >= 0 && catalog[currentIndex]?.id === trackId) {
+      btnLike.textContent = next.includes(trackId) ? "♥" : "♡";
+    }
+  }
+
+  // ---------- Playback ----------
+  function setNow(track) {
+    if (nowTitle) nowTitle.textContent = track?.title || "Henüz çalan yok";
+    if (nowArtist) nowArtist.textContent = track?.artist || "Bir şarkı seç";
+    if (btnLike && track?.id) btnLike.textContent = getLikes().includes(track.id) ? "♥" : "♡";
+  }
+
+  function stopYouTube() {
+    if (ytWrap) ytWrap.style.display = "none";
+    if (ytPlayer && typeof ytPlayer.stopVideo === "function") {
+      try { ytPlayer.stopVideo(); } catch {}
+    }
+  }
+
+  function playTrack(index) {
+    if (!Array.isArray(catalog) || catalog.length === 0) return;
+    currentIndex = clamp(index, 0, catalog.length - 1);
+    const track = catalog[currentIndex];
+    setNow(track);
+
+    // Stop whichever is not used
+    audio.pause();
+
+    if (track.type === "local") {
+      stopYouTube();
+      audio.src = track.src;
+      audio.play().catch(() => {});
+    } else if (track.type === "youtube") {
+      audio.src = "";
+      loadYouTube(track.youtubeId);
+    }
+  }
+
+  function nextTrack() {
+    if (!catalog.length) return;
+    playTrack((currentIndex + 1) % catalog.length);
+  }
+
+  function prevTrack() {
+    if (!catalog.length) return;
+    playTrack((currentIndex - 1 + catalog.length) % catalog.length);
+  }
+
+  function togglePlayPause() {
+    const track = catalog[currentIndex];
+    if (!track) return;
+
+    if (track.type === "local") {
+      if (audio.paused) audio.play().catch(() => {});
+      else audio.pause();
+    } else if (track.type === "youtube") {
+      if (ytPlayer && typeof ytPlayer.getPlayerState === "function") {
+        const st = ytPlayer.getPlayerState();
+        // 1 playing, 2 paused
+        if (st === 1) ytPlayer.pauseVideo();
+        else ytPlayer.playVideo();
+      }
+    }
+  }
+
+  // ---------- YouTube ----------
+  function ensureYTScript() {
+    if (ytReady || ytLoading) return;
+    ytLoading = true;
+
+    const s = document.createElement("script");
+    s.src = "https://www.youtube.com/iframe_api";
+    s.async = true;
+    document.head.appendChild(s);
+
+    window.onYouTubeIframeAPIReady = () => {
+      ytReady = true;
+      ytLoading = false;
+    };
+  }
+
+  function loadYouTube(videoId) {
+    if (!videoId) return;
+
+    if (ytWrap) ytWrap.style.display = "block";
+    ensureYTScript();
+
+    // Wait until API ready
+    const tick = () => {
+      if (!ytReady || !window.YT || !window.YT.Player) {
+        setTimeout(tick, 50);
+        return;
+      }
+
+      if (ytPlayer && typeof ytPlayer.loadVideoById === "function") {
+        try {
+          ytPlayer.loadVideoById(videoId);
+          ytPlayer.playVideo();
+        } catch {}
+        return;
+      }
+
+      // Create new player
+      try {
+        ytPlayer = new YT.Player("ytPlayer", {
+          height: "220",
+          width: "100%",
+          videoId,
+          playerVars: {
+            autoplay: 1,
+            rel: 0,
+            modestbranding: 1
+          },
+          events: {
+            onReady: (ev) => {
+              try { ev.target.playVideo(); } catch {}
+            }
+          }
+        });
+      } catch {}
+    };
+    tick();
+  }
+
+  // ---------- Search ----------
+  function applySearch(q) {
+    const query = String(q || "").trim().toLowerCase();
+    if (!query) {
+      filtered = catalog.slice();
+    } else {
+      filtered = catalog.filter(t =>
+        String(t.title || "").toLowerCase().includes(query) ||
+        String(t.artist || "").toLowerCase().includes(query)
+      );
+    }
+    renderResults(filtered);
+  }
+
+  // ---------- Button feedback (tıklama hissi) ----------
+  function pulse(el) {
+    if (!el) return;
+    el.animate(
+      [{ transform: "scale(1)" }, { transform: "scale(0.98)" }, { transform: "scale(1)" }],
+      { duration: 120, easing: "ease-out" }
+    );
+  }
+
+  // ---------- Wiring ----------
+  function wireAuth() {
+    if (btnTabLogin) btnTabLogin.onclick = () => { pulse(btnTabLogin); setAuthMode("login"); };
+    if (btnTabRegister) btnTabRegister.onclick = () => { pulse(btnTabRegister); setAuthMode("register"); };
+
+    if (authForm) {
+      authForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const email = inpEmail ? inpEmail.value.trim() : "";
+        const pass = inpPass ? inpPass.value : "";
+
+        if (mode === "register") {
+          const name = inpName ? inpName.value.trim() : "";
+          const pass2 = inpPass2 ? inpPass2.value : "";
+
+          const r = registerUser(name, email, pass, pass2);
+          if (!r.ok) {
+            alert(r.msg || "Kayıt başarısız.");
+            return;
+          }
+          alert("Kayıt başarılı. Şimdi giriş yapabilirsin.");
+          setAuthMode("login");
+          return;
+        }
+
+        const r = loginUser(email, pass);
+        if (!r.ok) {
+          alert(r.msg || "Giriş başarısız.");
+          return;
+        }
+
+        setSession({ email: r.user.email, name: r.user.name, at: Date.now() });
+        setUserBadge();
+        showApp(true);
+        showPage("home");
+      });
+    }
+  }
+
+  function wireNav() {
+    navBtns.forEach((b) => {
+      b.onclick = () => {
+        pulse(b);
+        const tab = b.dataset.tab;
+        if (!tab) return;
+        showPage(tab);
+      };
+    });
+
+    if (btnGoSearch) btnGoSearch.onclick = () => { pulse(btnGoSearch); showPage("search"); };
+    if (btnStart) btnStart.onclick = () => { pulse(btnStart); showPage("search"); };
+
+    chips.forEach((c) => {
+      c.onclick = () => {
+        pulse(c);
+        const q = c.dataset.q || "";
+        showPage("search");
+        if (searchInput) {
+          searchInput.value = q;
+          applySearch(q);
+        }
+      };
+    });
+  }
+
+  function wireSearch() {
+    if (searchInput) {
+      searchInput.addEventListener("input", () => applySearch(searchInput.value));
+    }
+    if (btnClearSearch) {
+      btnClearSearch.onclick = () => {
+        pulse(btnClearSearch);
+        if (searchInput) searchInput.value = "";
+        applySearch("");
+      };
+    }
+  }
+
+  function wirePlayer() {
+    if (btnNext) btnNext.onclick = () => { pulse(btnNext); nextTrack(); };
+    if (btnPrev) btnPrev.onclick = () => { pulse(btnPrev); prevTrack(); };
+    if (btnPlay) btnPlay.onclick = () => { pulse(btnPlay); togglePlayPause(); };
+
+    if (btnLike) {
+      btnLike.onclick = () => {
+        pulse(btnLike);
+        const t = catalog[currentIndex];
+        if (!t?.id) return;
+        toggleLike(t.id);
+      };
+    }
+
+    // Local audio timeline
+    audio.addEventListener("loadedmetadata", () => {
+      if (tDur) tDur.textContent = fmtTime(audio.duration);
+    });
+    audio.addEventListener("timeupdate", () => {
+      if (tCur) tCur.textContent = fmtTime(audio.currentTime);
+      if (seek && isFinite(audio.duration) && audio.duration > 0) {
+        const v = (audio.currentTime / audio.duration) * 100;
+        seek.value = String(clamp(v, 0, 100));
+      }
+    });
+    audio.addEventListener("ended", () => nextTrack());
+
+    if (seek) {
+      seek.addEventListener("input", () => {
+        if (!isFinite(audio.duration) || audio.duration <= 0) return;
+        const pct = Number(seek.value || 0) / 100;
+        audio.currentTime = pct * audio.duration;
+      });
+    }
+
+    if (vol) {
+      const setV = () => {
+        const v = clamp(Number(vol.value || 75), 0, 100) / 100;
+        audio.volume = v;
+      };
+      vol.addEventListener("input", setV);
+      setV();
+    }
+  }
+
+  function wireLogout() {
+    if (!btnLogout) return;
+    btnLogout.onclick = () => {
+      pulse(btnLogout);
+      clearSession();
+      setUserBadge();
+      showApp(false);
+      showPage("home");
+      stopYouTube();
+      audio.pause();
+      audio.src = "";
+      setNow(null);
+    };
+  }
+
+  // ---------- Boot ----------
+  function boot() {
+    ensureUsersSeed();
+    setAuthMode("login");
+    setUserBadge();
+
+    wireAuth();
     wireNav();
-    wirePlayerControls();
-    updatePlayerUI();
+    wireSearch();
+    wirePlayer();
+    wireLogout();
 
-    // İlk ekran
-    showView("home");
-  });
+    loadCatalog();
 
+    const s = getSession();
+    const loggedIn = !!s?.email;
+    showApp(loggedIn);
+
+    // Start at home (app) or auth
+    if (loggedIn) showPage("home");
+    else showPage("home");
+  }
+
+  document.addEventListener("DOMContentLoaded", boot);
 })();
+
