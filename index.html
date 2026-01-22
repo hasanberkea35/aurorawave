@@ -1,115 +1,40 @@
-<!doctype html>
-<html lang="tr">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AuroraWave</title>
-  <link rel="stylesheet" href="./styles.css" />
-</head>
-<body>
+<!-- VIEWS -->
+<main class="app">
+  <section id="viewHome"><div id="homeHost"></div></section>
+  <section id="viewSearch" style="display:none"><div id="searchHost"></div></section>
+  <section id="viewLibrary" style="display:none"><div id="libraryHost"></div></section>
+</main>
 
-  <!-- Top bar -->
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">A</div>
-      <div class="brandText">
-        <div class="brandName">AURORAWAVE</div>
-        <div class="brandTag">Keşfet · Dinle · Topla</div>
-      </div>
-    </div>
+<!-- PLAYER -->
+<div class="player">
+  <div id="nowCover" class="nowCover"></div>
+  <div class="nowMeta">
+    <div id="nowTitle">Henüz çalan yok</div>
+    <div id="nowArtist">Bir şarkı seç</div>
+  </div>
 
-    <div class="topActions">
-      <span id="userBadge" class="badge">Misafir</span>
-    </div>
-  </header>
+  <button id="btnPlay" class="pbtn">▶</button>
 
-  <!-- Views -->
-  <main class="main">
-    <!-- HOME -->
-    <section id="viewHome" class="view">
-      <div class="panel">
-        <h2>Keşfet</h2>
-        <p class="muted">Bilindik şarkılar için YouTube sekmesine geçip link yapıştırarak dinleyebilirsin.</p>
+  <div class="time">
+    <span id="tCur">0:00</span>
+    <input id="seek" type="range" min="0" max="100" value="0" />
+    <span id="tDur">0:00</span>
+  </div>
 
-        <div class="quick">
-          <button class="pill" type="button" id="goYouTube">YouTube’a git</button>
-        </div>
+  <input id="vol" type="range" min="0" max="1" step="0.01" value="0.85" />
+</div>
 
-        <div class="infoBox">
-          <div class="infoTitle">Nasıl çalışır?</div>
-          <div class="muted">
-            1) YouTube’a git → 2) Şarkıyı YouTube’da ara → 3) Video linkini kopyala → 4) Uygulamaya yapıştır → Çal
-          </div>
-        </div>
-      </div>
-    </section>
+<!-- BOTTOM NAV -->
+<nav class="bottomNav">
+  <button id="navHome" class="navBtn is-active" aria-selected="true">Keşfet</button>
+  <button id="navSearch" class="navBtn" aria-selected="false">Ara</button>
+  <button id="navLibrary" class="navBtn" aria-selected="false">Kütüphane</button>
+</nav>
 
-    <!-- YOUTUBE -->
-    <section id="viewYouTube" class="view" style="display:none">
-      <div class="panel">
-        <h2>YouTube</h2>
-        <p class="muted">Bilindik şarkıları YouTube üzerinden (embed) dinle. İndirme yok, sadece oynatma.</p>
+<!-- AUDIO + SCRIPT -->
+<audio id="awPlayer" preload="metadata"></audio>
+<script src="./app.js"></script>
 
-        <div class="searchBar">
-          <input id="ytQuery" type="search" placeholder="Şarkı / sanatçı yaz (örn: The Weeknd Blinding Lights)" />
-          <button id="ytSearchOpen" class="btnPrimary" type="button">YouTube’da Ara</button>
-        </div>
-
-        <div class="searchBar" style="margin-top:10px">
-          <input id="ytUrl" type="url" placeholder="YouTube linkini buraya yapıştır (watch?v=... veya youtu.be/...)" />
-          <button id="ytPlay" class="btnPrimary" type="button">Uygulamada Çal</button>
-        </div>
-
-        <div id="ytHint" class="meta">
-          İpucu: YouTube’da doğru videoyu bul → linki kopyala → buraya yapıştır → Uygulamada Çal.
-        </div>
-
-        <div class="ytFrameWrap" style="margin-top:12px">
-          <iframe
-            id="ytFrame"
-            title="YouTube Player"
-            src=""
-            allow="autoplay; encrypted-media; picture-in-picture"
-            allowfullscreen
-            referrerpolicy="strict-origin-when-cross-origin"
-          ></iframe>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Bottom player (YouTube değil, sadece bilgi alanı gibi durur) -->
-  <footer class="player">
-    <div class="now">
-      <div id="nowCover" class="cover"></div>
-      <div class="nowText">
-        <div id="nowTitle" class="nowTitle">YouTube modunda</div>
-        <div id="nowArtist" class="nowArtist">Link yapıştırıp çal</div>
-      </div>
-    </div>
-
-    <div class="controls">
-      <button id="btnStopYT" class="iconBtn big" type="button">■</button>
-    </div>
-
-    <div class="seek">
-      <span class="muted">YouTube embed oynatma</span>
-    </div>
-
-    <div class="vol">
-      <span class="muted">—</span>
-    </div>
-  </footer>
-
-  <!-- Bottom nav -->
-  <nav class="bottomNav">
-    <button id="navHome" class="navBtn active" type="button">Keşfet</button>
-    <button id="navYouTube" class="navBtn" type="button">YouTube</button>
-  </nav>
-
-  <script src="./app.js"></script>
-</body>
-</html>
 
 
 
