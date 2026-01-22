@@ -1,170 +1,205 @@
 <!doctype html>
 <html lang="tr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AuroraWave</title>
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 
-<body data-auth-mode="login">
-  <div class="bg" aria-hidden="true">
-    <div class="aurora a1"></div>
-    <div class="aurora a2"></div>
-    <div class="aurora a3"></div>
-    <div class="grain"></div>
-    <div class="vignette"></div>
-  </div>
+<body>
+  <!-- Background -->
+  <div class="bg"></div>
+  <div class="noise"></div>
 
+  <!-- Top bar -->
   <header class="topbar">
     <div class="brand">
       <div class="logo">A</div>
       <div class="brandText">
         <div class="name">AURORAWAVE</div>
-        <div class="tag">Keşfet • Dinle • Topla</div>
+        <div class="tag">Keşfet · Dinle · Topla</div>
       </div>
     </div>
 
     <div class="topActions">
-      <span id="whoami" class="whoami hidden"></span>
-      <button id="btnLogout" class="ghost hidden" type="button">Çıkış</button>
+      <button id="btnProfile" class="chip" type="button" aria-label="Profil">
+        <span id="profileEmail" class="chipText">Misafir</span>
+      </button>
+      <button id="btnLogout" class="chip danger" type="button">Çıkış</button>
     </div>
   </header>
 
-  <main class="stage">
+  <!-- Main -->
+  <main class="shell">
 
-    <section class="auth-card" id="authCard">
-      <div class="auth-header">
-        <div class="auth-kicker">HIZLI GİRİŞ</div>
-        <div class="auth-title">Devam etmek için giriş yap</div>
+    <!-- AUTH VIEW -->
+    <section id="viewAuth" class="view">
+      <div class="card authCard">
+        <div class="authHead">
+          <div>
+            <div class="authTitle" id="authTitle">Hızlı Giriş</div>
+            <div class="authSub" id="authSub">Devam etmek için giriş yap</div>
+          </div>
 
-        <div class="auth-tabs" role="tablist" aria-label="Giriş/Kayıt">
-          <button id="tabLogin" class="tab active" type="button" role="tab" aria-selected="true">Giriş</button>
-          <button id="tabRegister" class="tab" type="button" role="tab" aria-selected="false">Kayıt</button>
+          <div class="seg" role="tablist" aria-label="Giriş/Kayıt">
+            <button id="tabLogin" class="segBtn active" type="button">Giriş</button>
+            <button id="tabRegister" class="segBtn" type="button">Kayıt</button>
+          </div>
         </div>
+
+        <form id="authForm" class="form" autocomplete="on">
+          <div id="rowFullName" class="row">
+            <label>Ad Soyad</label>
+            <input id="inFullName" type="text" placeholder="Örn: Hasan Berke" />
+          </div>
+
+          <div class="row">
+            <label>E-posta</label>
+            <input id="inEmail" type="email" placeholder="ornek@mail.com" required />
+          </div>
+
+          <div class="row">
+            <label>Şifre</label>
+            <input id="inPass" type="password" placeholder="••••••••" required minlength="4" />
+          </div>
+
+          <div id="rowPass2" class="row">
+            <label>Şifre (Tekrar)</label>
+            <input id="inPass2" type="password" placeholder="••••••••" minlength="4" />
+          </div>
+
+          <button id="btnSubmit" class="btnPrimary" type="submit">Giriş yap</button>
+
+          <div class="hint">
+            Not: Bu demo lokalde çalışır. Gerçek kullanıcı sistemi istersen Firebase/Supabase entegrasyonu yapılır.
+          </div>
+        </form>
       </div>
-
-      <form id="authForm" class="auth-form" autocomplete="off">
-        <div class="register-only">
-          <label class="field">
-            <span>Ad Soyad</span>
-            <input id="regName" type="text" placeholder="Örn: Hasan Berke">
-          </label>
-        </div>
-
-        <label class="field">
-          <span>E-posta</span>
-          <input id="email" type="email" placeholder="ornek@mail.com" required>
-        </label>
-
-        <label class="field">
-          <span>Şifre</span>
-          <input id="pass" type="password" placeholder="••••••••" required>
-        </label>
-
-        <div class="register-only">
-          <label class="field">
-            <span>Şifre (Tekrar)</span>
-            <input id="pass2" type="password" placeholder="••••••••">
-          </label>
-        </div>
-
-        <button id="btnSubmit" class="primary" type="submit">Giriş yap</button>
-
-        <div class="note">Not: Bu demo lokalde çalışır.</div>
-      </form>
     </section>
 
-    <section id="appShell" class="app-shell hidden">
-      <section id="viewHome" class="view">
-        <div class="hero">
-          <div class="heroGlow"></div>
-          <div class="heroTop">
-            <div class="heroTitle">Keşfet</div>
-            <button class="iconBtn" type="button" title="Ayarlar">⚙</button>
+    <!-- HOME VIEW -->
+    <section id="viewHome" class="view hidden">
+      <div class="homeWrap">
+        <div class="homeHero">
+          <div class="heroTitle">Aurora Orbit</div>
+          <div class="heroSub">Ruh hâline göre bir rota seç ve akışa gir.</div>
+
+          <div class="heroActions">
+            <button id="btnStartMix" class="btnSoft" type="button">
+              Rota Başlat
+              <span class="arrow">›</span>
+            </button>
+
+            <button id="btnGoSearch" class="btnSoft ghost" type="button">
+              Şarkı / Sanatçı Ara
+              <span class="arrow">›</span>
+            </button>
           </div>
-          <div class="heroSub">Müziği keşfetmeye hazır mısın?</div>
-
-          <button id="btnStart" class="ctaRow" type="button">
-            <span>Hazırsan başlayalım</span>
-            <span class="chev">›</span>
-          </button>
-
-          <button id="btnQuickSearch" class="searchRow" type="button">
-            <span class="sicon">⌕</span>
-            <span>Şarkı veya sanatçı ara…</span>
-            <span class="chev">›</span>
-          </button>
         </div>
 
-        <div class="sectionTitle">Önerilen</div>
-        <div class="carousel" id="recoRow"></div>
+        <div class="sectionTitle">Rotalar</div>
+        <div id="routeChips" class="chipGrid"></div>
 
-        <div class="sectionTitle">Kısa Yollar</div>
-        <div class="chips">
-          <button class="chip" type="button">Lo-Fi Akışı</button>
-          <button class="chip" type="button">Gece Ruhu</button>
-          <button class="chip" type="button">Enerji Kat</button>
-          <button class="chip" type="button">Synthwave</button>
-        </div>
-      </section>
+        <div class="sectionTitle">Öne Çıkanlar</div>
+        <div id="featuredGrid" class="grid"></div>
+      </div>
+    </section>
 
-      <section id="viewSearch" class="view hidden">
+    <!-- SEARCH VIEW -->
+    <section id="viewSearch" class="view hidden">
+      <div class="searchWrap">
         <div class="searchHeader">
           <div class="searchTitle">Ara</div>
-          <div class="searchHint">Şarkı adı veya sanatçı yazarak bul</div>
+          <div class="searchSub">Tüm şarkılar ve sanatçılar içinde ara.</div>
         </div>
 
-        <div class="searchBox">
-          <span class="sicon">⌕</span>
-          <input id="searchInput" type="text" placeholder="Örn: Gece Ruhu veya Nova Kaan">
-          <button id="searchClear" class="miniGhost" type="button">Temizle</button>
+        <div class="searchBar">
+          <input id="q" type="search" placeholder="Şarkı veya sanatçı yaz..." />
+          <button id="btnClearSearch" class="iconBtn" type="button" aria-label="Temizle">×</button>
         </div>
 
-        <div class="resultMeta" id="resultMeta">—</div>
-        <div class="results" id="resultsList"></div>
-      </section>
-
-      <section id="viewLibrary" class="view hidden">
-        <div class="sectionTitle">Kütüphane</div>
-        <div class="card">
-          <h3>Henüz boş</h3>
-          <p>Beğendiklerini burada tutacağız.</p>
+        <div class="pillRow">
+          <button class="pill active" data-filter="all" type="button">Tümü</button>
+          <button class="pill" data-filter="song" type="button">Şarkı</button>
+          <button class="pill" data-filter="artist" type="button">Sanatçı</button>
         </div>
-      </section>
+
+        <div id="searchResults" class="list"></div>
+      </div>
+    </section>
+
+    <!-- LIBRARY VIEW -->
+    <section id="viewLibrary" class="view hidden">
+      <div class="libraryWrap">
+        <div class="libraryHeader">
+          <div class="libraryTitle">Kütüphane</div>
+          <div class="librarySub">Beğendiklerin ve son çaldıkların burada.</div>
+        </div>
+
+        <div class="sectionTitle">Favoriler</div>
+        <div id="favList" class="list"></div>
+
+        <div class="sectionTitle">Son Çalınanlar</div>
+        <div id="recentList" class="list"></div>
+      </div>
     </section>
 
   </main>
 
-  <footer class="mini hidden">
-    <div class="mini-left">
-      <div class="art"></div>
+  <!-- Player -->
+  <footer class="player">
+    <div class="pLeft">
+      <div class="cover" id="pCover" aria-hidden="true"></div>
       <div class="meta">
-        <div class="t" id="nowTitle">—</div>
-        <div class="a" id="nowArtist">—</div>
+        <div id="nowTitle" class="nowTitle">Henüz çalan yok</div>
+        <div id="nowArtist" class="nowArtist">Bir şarkı seç</div>
       </div>
     </div>
 
-    <div class="mini-mid">
-      <button class="miniBtn" type="button" id="btnPrev">⟲</button>
-      <button class="miniBtn play" type="button" id="btnPlay">▶</button>
-      <button class="miniBtn" type="button" id="btnNext">⟳</button>
+    <div class="pMid">
+      <div class="controls">
+        <button id="btnPrev" class="ctl" type="button" aria-label="Önceki">⟲</button>
+        <button id="btnPlay" class="ctl big" type="button" aria-label="Oynat/Duraklat">▶</button>
+        <button id="btnNext" class="ctl" type="button" aria-label="Sonraki">⟳</button>
+      </div>
+
+      <div class="timeline">
+        <span id="tCur" class="t">0:00</span>
+        <input id="seek" type="range" min="0" max="1000" value="0" />
+        <span id="tDur" class="t">0:00</span>
+      </div>
     </div>
 
-    <div class="mini-right">
-      <div class="time">0:00</div>
-      <div class="bar"><div class="fill" style="width:0%"></div></div>
-      <div class="time">0:00</div>
+    <div class="pRight">
+      <button id="btnFavToggle" class="chip" type="button">♡</button>
+      <input id="vol" type="range" min="0" max="1" step="0.01" value="0.9" aria-label="Ses" />
     </div>
   </footer>
 
-  <nav class="bottom hidden" aria-label="Alt Menü">
-    <button id="navHome" class="navItem active" type="button">Keşfet</button>
-    <button id="navSearch" class="navItem" type="button">Ara</button>
-    <button id="navLibrary" class="navItem" type="button">Kütüphane</button>
+  <!-- Bottom nav -->
+  <nav class="bottomNav" aria-label="Alt menü">
+    <button class="navBtn active" data-view="home" type="button">
+      <span class="navIcon">◈</span>
+      <span class="navText">Keşfet</span>
+    </button>
+
+    <button class="navBtn" data-view="search" type="button">
+      <span class="navIcon">⌕</span>
+      <span class="navText">Ara</span>
+    </button>
+
+    <button class="navBtn" data-view="library" type="button">
+      <span class="navIcon">▦</span>
+      <span class="navText">Kütüphane</span>
+    </button>
   </nav>
 
+  <!-- Toast -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
   <script src="./app.js"></script>
-<audio id="awPlayer" preload="metadata"></audio>
+  <audio id="awPlayer" preload="metadata"></audio>
 </body>
 </html>
+
