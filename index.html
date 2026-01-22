@@ -20,7 +20,6 @@
 
     <div class="topActions">
       <span id="userBadge" class="badge">Misafir</span>
-      <button id="btnLogout" class="btnGhost" type="button">Çıkış</button>
     </div>
   </header>
 
@@ -30,111 +29,88 @@
     <section id="viewHome" class="view">
       <div class="panel">
         <h2>Keşfet</h2>
-        <p class="muted">Müziği keşfetmeye hazır mısın?</p>
+        <p class="muted">Bilindik şarkılar için YouTube sekmesine geçip link yapıştırarak dinleyebilirsin.</p>
 
         <div class="quick">
-          <button class="pill" type="button" id="goSearch">Şarkı / sanatçı ara</button>
-          <button class="pill" type="button" id="goLibrary">Kütüphaneye git</button>
+          <button class="pill" type="button" id="goYouTube">YouTube’a git</button>
         </div>
 
         <div class="infoBox">
-          <div class="infoTitle">İpucu</div>
-          <div class="muted">Ara sekmesinden Jamendo üzerinden ücretsiz parçaları arayıp çalabilirsin.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- SEARCH -->
-    <section id="viewSearch" class="view" style="display:none">
-      <div class="panel">
-        <h2>Ara</h2>
-        <p class="muted">Şarkı veya sanatçı yaz.</p>
-
-        <div class="searchBar">
-          <input id="searchInput" type="search" placeholder="Örn: nova, lo-fi, synthwave…" />
-          <button id="searchBtn" type="button" class="btnPrimary">Ara</button>
-        </div>
-
-        <div id="searchMeta" class="meta"></div>
-        <div id="searchEmpty" class="empty" style="display:none">Sonuç yok.</div>
-        <div id="searchResults" class="results"></div>
-      </div>
-    </section>
-
-    <!-- LIBRARY -->
-    <section id="viewLibrary" class="view" style="display:none">
-      <div class="panel">
-        <h2>Kütüphane</h2>
-        <p class="muted">Kaydettiğin şarkılar burada.</p>
-
-        <div id="libraryList" class="results"></div>
-      </div>
-    </section>
-
-    <!-- AUTH -->
-    <section id="viewAuth" class="view" style="display:none">
-      <div class="panel authPanel">
-        <div class="authHead">
-          <h2 id="authTitle">Giriş yap</h2>
-          <div class="tabs">
-            <button id="tabLogin" class="tab active" type="button">Giriş</button>
-            <button id="tabRegister" class="tab" type="button">Kayıt</button>
+          <div class="infoTitle">Nasıl çalışır?</div>
+          <div class="muted">
+            1) YouTube’a git → 2) Şarkıyı YouTube’da ara → 3) Video linkini kopyala → 4) Uygulamaya yapıştır → Çal
           </div>
         </div>
+      </div>
+    </section>
 
-        <form id="authForm" class="authForm">
-          <input id="name" class="only-register" type="text" placeholder="Ad Soyad" style="display:none" />
-          <input id="email" type="email" placeholder="E-posta" required />
-          <input id="pass" type="password" placeholder="Şifre" required />
-          <input id="pass2" class="only-register" type="password" placeholder="Şifre (Tekrar)" style="display:none" />
+    <!-- YOUTUBE -->
+    <section id="viewYouTube" class="view" style="display:none">
+      <div class="panel">
+        <h2>YouTube</h2>
+        <p class="muted">Bilindik şarkıları YouTube üzerinden (embed) dinle. İndirme yok, sadece oynatma.</p>
 
-          <button id="btnSubmit" class="btnPrimary" type="submit">Giriş yap</button>
-          <div class="muted tiny">Not: Bu demo local kullanıcı kaydı kullanır (localStorage).</div>
-        </form>
+        <div class="searchBar">
+          <input id="ytQuery" type="search" placeholder="Şarkı / sanatçı yaz (örn: The Weeknd Blinding Lights)" />
+          <button id="ytSearchOpen" class="btnPrimary" type="button">YouTube’da Ara</button>
+        </div>
+
+        <div class="searchBar" style="margin-top:10px">
+          <input id="ytUrl" type="url" placeholder="YouTube linkini buraya yapıştır (watch?v=... veya youtu.be/...)" />
+          <button id="ytPlay" class="btnPrimary" type="button">Uygulamada Çal</button>
+        </div>
+
+        <div id="ytHint" class="meta">
+          İpucu: YouTube’da doğru videoyu bul → linki kopyala → buraya yapıştır → Uygulamada Çal.
+        </div>
+
+        <div class="ytFrameWrap" style="margin-top:12px">
+          <iframe
+            id="ytFrame"
+            title="YouTube Player"
+            src=""
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowfullscreen
+            referrerpolicy="strict-origin-when-cross-origin"
+          ></iframe>
+        </div>
       </div>
     </section>
   </main>
 
-  <!-- Bottom player -->
+  <!-- Bottom player (YouTube değil, sadece bilgi alanı gibi durur) -->
   <footer class="player">
     <div class="now">
       <div id="nowCover" class="cover"></div>
       <div class="nowText">
-        <div id="nowTitle" class="nowTitle">Henüz çalan yok</div>
-        <div id="nowArtist" class="nowArtist">Bir şarkı seç</div>
+        <div id="nowTitle" class="nowTitle">YouTube modunda</div>
+        <div id="nowArtist" class="nowArtist">Link yapıştırıp çal</div>
       </div>
     </div>
 
     <div class="controls">
-      <button id="btnPrev" class="iconBtn" type="button">⟲</button>
-      <button id="btnPlay" class="iconBtn big" type="button">▶</button>
-      <button id="btnNext" class="iconBtn" type="button">⟳</button>
+      <button id="btnStopYT" class="iconBtn big" type="button">■</button>
     </div>
 
     <div class="seek">
-      <span id="timeCur" class="time">0:00</span>
-      <input id="seek" type="range" min="0" max="1000" value="0" />
-      <span id="timeDur" class="time">0:00</span>
+      <span class="muted">YouTube embed oynatma</span>
     </div>
 
     <div class="vol">
-      <span class="muted">🔊</span>
-      <input id="vol" type="range" min="0" max="1" step="0.01" value="0.85" />
+      <span class="muted">—</span>
     </div>
   </footer>
 
   <!-- Bottom nav -->
   <nav class="bottomNav">
     <button id="navHome" class="navBtn active" type="button">Keşfet</button>
-    <button id="navSearch" class="navBtn" type="button">Ara</button>
-    <button id="navLibrary" class="navBtn" type="button">Kütüphane</button>
-    <button id="navAuth" class="navBtn" type="button">Hesap</button>
+    <button id="navYouTube" class="navBtn" type="button">YouTube</button>
   </nav>
 
-  <audio id="awPlayer" preload="metadata"></audio>
   <script src="./app.js"></script>
 </body>
 </html>
+
 
 
 
