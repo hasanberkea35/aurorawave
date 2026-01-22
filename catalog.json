@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "updatedAt": "2026-01-22",
+  "tracks": [
+    {
+      "id": "t001",
+      "title": "Morning Drift",
+      "artist": "Aurora Commons",
+      "url": "./music/morning-drift.mp3",
+      "cover": "",
+      "license": "CC0 / Public Domain equivalent",
+      "attribution": "No attribution required (CC0)."
+    },
+    {
+      "id": "t002",
+      "title": "Neon Steps",
+      "artist": "Pulse District",
+      "url": "./music/neon-steps.mp3",
+      "cover": "",
+      "license": "CC BY 4.0",
+      "attribution": "Provide attribution in-app: Artist, track title, license link."
+    },
+    {
+      "id": "t003",
+      "title": "Quiet Orbit",
+      "artist": "Lumen Soft",
+      "url": "./music/quiet-orbit.mp3",
+      "cover": "",
+      "license": "CC0 / Public Domain equivalent",
+      "attribution": "No attribution required (CC0)."
+    }
+  ]
+}
