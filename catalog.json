@@ -1,33 +1,26 @@
 {
-  "version": 1,
-  "updatedAt": "2026-01-22",
   "tracks": [
     {
-      "id": "t001",
-      "title": "Morning Drift",
-      "artist": "Aurora Commons",
-      "url": "./music/morning-drift.mp3",
-      "cover": "",
-      "license": "CC0 / Public Domain equivalent",
-      "attribution": "No attribution required (CC0)."
+      "id": "aw-001",
+      "title": "Neon Drift",
+      "artist": "Nova Kaen",
+      "mood": "Orbit",
+      "src": "./public/audio/neon-drift.mp3"
     },
     {
-      "id": "t002",
-      "title": "Neon Steps",
-      "artist": "Pulse District",
-      "url": "./music/neon-steps.mp3",
-      "cover": "",
-      "license": "CC BY 4.0",
-      "attribution": "Provide attribution in-app: Artist, track title, license link."
+      "id": "aw-002",
+      "title": "Glass Aurora",
+      "artist": "Artemis Pulse",
+      "mood": "Orbit",
+      "src": "./public/audio/glass-aurora.mp3"
     },
     {
-      "id": "t003",
-      "title": "Quiet Orbit",
+      "id": "aw-003",
+      "title": "Quiet District",
       "artist": "Lumen Soft",
-      "url": "./music/quiet-orbit.mp3",
-      "cover": "",
-      "license": "CC0 / Public Domain equivalent",
-      "attribution": "No attribution required (CC0)."
+      "mood": "Night",
+      "src": "./public/audio/quiet-district.mp3"
     }
   ]
 }
+
