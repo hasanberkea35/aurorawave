@@ -1,26 +1,31 @@
-{
-  "tracks": [
-    {
-      "id": "aw-001",
-      "title": "Neon Drift",
-      "artist": "Nova Kaen",
-      "mood": "Orbit",
-      "src": "./public/audio/neon-drift.mp3"
-    },
-    {
-      "id": "aw-002",
-      "title": "Glass Aurora",
-      "artist": "Artemis Pulse",
-      "mood": "Orbit",
-      "src": "./public/audio/glass-aurora.mp3"
-    },
-    {
-      "id": "aw-003",
-      "title": "Quiet District",
-      "artist": "Lumen Soft",
-      "mood": "Night",
-      "src": "./public/audio/quiet-district.mp3"
-    }
-  ]
-}
+[
+  {
+    "id": "l1",
+    "title": "Aase's Death",
+    "artist": "Edvard Grieg",
+    "type": "local",
+    "src": "public/audio/aases-death.ogg"
+  },
+  {
+    "id": "l2",
+    "title": "Scriabin Prelude",
+    "artist": "Alexander Scriabin",
+    "type": "local",
+    "src": "public/audio/scriabin-prelude.ogg"
+  },
+  {
+    "id": "y1",
+    "title": "Blinding Lights",
+    "artist": "The Weeknd",
+    "type": "youtube",
+    "youtubeId": "4NRXx6U8ABQ"
+  },
+  {
+    "id": "y2",
+    "title": "Shape of You",
+    "artist": "Ed Sheeran",
+    "type": "youtube",
+    "youtubeId": "JGwWNGJdvx8"
+  }
+]
 
